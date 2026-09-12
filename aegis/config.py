@@ -2,7 +2,16 @@ from pathlib import Path
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.getenv("AEGIS_DATA_DIR", BASE_DIR / "data")).expanduser()
+IS_VERCEL = bool(os.getenv("VERCEL"))
+
+# Vercel's deployed filesystem is read-only except for /tmp. Keep local Docker
+# deployments on the persistent data directory, while serverless invocations
+# use ephemeral storage.
+if IS_VERCEL:
+    DATA_DIR = Path(os.getenv("AEGIS_DATA_DIR", "/tmp/aegis-terminal")).expanduser()
+else:
+    DATA_DIR = Path(os.getenv("AEGIS_DATA_DIR", BASE_DIR / "data")).expanduser()
+
 DB_PATH = DATA_DIR / "aegis.db"
 DATABASE_URL = os.getenv("AEGIS_DATABASE_URL", "").strip()
 DB_BACKEND = "postgresql" if DATABASE_URL.startswith(("postgresql://", "postgres://")) else "sqlite"
