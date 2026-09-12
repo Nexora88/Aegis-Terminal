@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from .antivirus import scan_file, scanner_overview
+from .comms import init_comms, messages, send_message
 from .crypto import message_demo
 from .db import add_event, events, init_db
 from .decision import assess
@@ -14,6 +15,7 @@ from .tracking import tracks
 
 app = FastAPI(title='AEGIS TERMINAL', version='0.4.0')
 init_db()
+init_comms()
 
 
 class EventPayload(BaseModel):
@@ -25,6 +27,12 @@ class EventPayload(BaseModel):
 
 class ScanPayload(BaseModel):
     path: str
+
+
+class MessagePayload(BaseModel):
+    sender: str = 'AEGIS-OPERATOR'
+    room: str = 'COMMAND'
+    message: str
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -83,6 +91,21 @@ def tracking():
 @app.get('/api/comms/demo')
 def comms_demo():
     return message_demo()
+
+
+@app.get('/api/comms/messages')
+def comms_messages(room: str = 'COMMAND'):
+    return messages(room)
+
+
+@app.post('/api/comms/messages')
+def comms_send(payload: MessagePayload):
+    try:
+        result = send_message(payload.sender, payload.room, payload.message)
+        add_event('Secure message sent', 'INFO', 'secure-comms', payload.room)
+        return result
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @app.get('/api/security/scanner')
