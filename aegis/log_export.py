@@ -4,11 +4,14 @@ import json
 import logging
 import logging.handlers
 import os
+from datetime import datetime, timezone
 from typing import Any
 
-from .telemetry import utc_now
-
 logger = logging.getLogger("aegis.siem")
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def build_log(event_type: str, data: Any, severity: str = "INFO", source: str = "aegis") -> dict:
