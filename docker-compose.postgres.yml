@@ -1,0 +1,38 @@
+services:
+  aegis:
+    build: .
+    container_name: aegis-terminal
+    ports:
+      - "8000:8000"
+    environment:
+      AEGIS_DATA_DIR: /app/data
+      AEGIS_DATABASE_URL: postgresql://aegis:aegis@timescaledb:5432/aegis
+      AEGIS_COLLECT_INTERVAL: 15
+    volumes:
+      - aegis_data:/app/data
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: aegis-timescaledb
+    environment:
+      POSTGRES_DB: aegis
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: aegis
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis -d aegis"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  aegis_data:
+  timescale_data:
