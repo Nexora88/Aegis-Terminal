@@ -1,6 +1,8 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
+import asyncio
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
@@ -12,12 +14,27 @@ from .decision import assess
 from .integrity import sha256_file
 from .monitor import interfaces, processes, snapshot
 from .tracking import tracks
+from .telemetry import collector_loop, manager
+from .log_export import json_line, emit_syslog
 
 WEB_DIR = Path(__file__).parent / 'web'
 
-app = FastAPI(title='AEGIS TERMINAL', version='0.5.0')
-init_db()
-init_comms()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    init_comms()
+    stop_event = asyncio.Event()
+    collector = asyncio.create_task(collector_loop(stop_event))
+    app.state.collector_stop = stop_event
+    try:
+        yield
+    finally:
+        stop_event.set()
+        await collector
+
+
+app = FastAPI(title='AEGIS TERMINAL', version='0.6.0', lifespan=lifespan)
 
 
 class EventPayload(BaseModel):
@@ -92,6 +109,35 @@ def ev():
 def create_event(payload: EventPayload):
     event_id = add_event(payload.title, payload.severity.upper(), payload.source, payload.details)
     return {'id': event_id, 'status': 'recorded'}
+
+
+@app.get('/api/logs/json')
+def logs_json(limit: int = 100):
+    limit = max(1, min(limit, 1000))
+    return [json_line(x['title'], x['details'], x['severity'], x['source']) for x in events(limit)]
+
+
+@app.get('/api/logs/syslog/status')
+def syslog_status():
+    import os
+    return {'configured': bool(os.getenv('AEGIS_SYSLOG_HOST')), 'host': os.getenv('AEGIS_SYSLOG_HOST'), 'port': int(os.getenv('AEGIS_SYSLOG_PORT', '514'))}
+
+
+@app.post('/api/logs/syslog/test')
+def syslog_test():
+    return {'sent': emit_syslog('Aegis SIEM test', {'status': 'ok'}, 'INFO', 'aegis-api')}
+
+
+@app.websocket('/ws/telemetry')
+async def telemetry_ws(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception:
+        manager.disconnect(websocket)
 
 
 @app.get('/api/assessment')
