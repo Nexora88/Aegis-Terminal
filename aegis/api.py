@@ -4,12 +4,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from .crypto import message_demo
 from .db import add_event, events, init_db
 from .decision import assess
 from .integrity import sha256_file
 from .monitor import interfaces, processes, snapshot
+from .tracking import tracks
 
-app = FastAPI(title='AEGIS TERMINAL', version='0.2.0')
+app = FastAPI(title='AEGIS TERMINAL', version='0.3.0')
 init_db()
 
 
@@ -66,6 +68,16 @@ def create_event(payload: EventPayload):
 @app.get('/api/assessment')
 def risk():
     return assess(snapshot())
+
+
+@app.get('/api/tracking')
+def tracking():
+    return tracks()
+
+
+@app.get('/api/comms/demo')
+def comms_demo():
+    return message_demo()
 
 
 @app.post('/api/integrity')
