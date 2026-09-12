@@ -36,7 +36,7 @@ function aegisEnsureIntel(){
 
 function aegisOpenIntel(t){
   const drawer=aegisEnsureIntel();
-  if(!t){drawer.classList.remove('open');return;}
+  if(!t){drawer.classList.remove('open');return}
   const id=t.id||t.callsign||t.name||'UNKNOWN';
   const h=aegisHistory.get(id)||[];
   const body=document.getElementById('aidBody');
@@ -105,3 +105,33 @@ globe.yaw=35*Math.PI/180;globe.pitch=.08;globe.zoom=1.08;
 aegisEnsureIntel();
 aegisLoadGeo();
 window.addEventListener('resize',aegisDrawOverlay);
+
+/* Operator controls: filter tracks without touching the underlying sensor feed. */
+let aegisFilter='ALL';
+function aegisEnsureControls(){
+  const map=document.getElementById('map');if(!map||document.getElementById('aegisFilters'))return;
+  const bar=document.createElement('div');bar.id='aegisFilters';
+  Object.assign(bar.style,{position:'absolute',left:'14px',bottom:'14px',zIndex:'5',display:'flex',gap:'6px',flexWrap:'wrap'});
+  ['ALL','AIR','SEA'].forEach(mode=>{const b=document.createElement('button');b.textContent=mode;b.dataset.mode=mode;Object.assign(b.style,{border:'1px solid rgba(99,255,155,.25)',background:'rgba(2,10,7,.82)',color:'#9ac9aa',padding:'7px 10px',font:'10px ui-monospace',letterSpacing:'.08em',cursor:'pointer'});b.onclick=()=>{aegisFilter=mode;document.querySelectorAll('#aegisFilters button').forEach(x=>x.style.color=x.dataset.mode===mode?'#63ff9b':'#9ac9aa');aegisApplyFilter();};bar.appendChild(b)});
+  map.appendChild(bar);aegisApplyFilter();
+}
+function aegisApplyFilter(){
+  const filtered={...latestTracks,aircraft:aegisFilter==='SEA'?[]:(latestTracks.aircraft||[]),vessels:aegisFilter==='AIR'?[]:(latestTracks.vessels||[])};
+  const base=window.__aegisBaseDraw||drawAllMaps;
+  window.__aegisFilteredTracks=filtered;
+  drawGlobe($('globeCanvas'),filtered);drawRadar($('radarCanvas'),filtered);aegisDrawOverlay();
+}
+const aegisOldDrawAll=window.drawAllMaps;
+window.drawAllMaps=function(){
+  if(aegisFilter==='ALL'){aegisOldDrawAll();aegisDrawOverlay();return}
+  aegisApplyFilter();
+};
+const aegisOldRenderTracks=window.renderTracks;
+window.renderTracks=function(payload){
+  aegisRememberTracks(payload);
+  aegisOldRenderTracks(payload);
+  aegisEnsureControls();
+  aegisApplyFilter();
+};
+
+aegisEnsureControls();
