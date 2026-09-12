@@ -16,6 +16,7 @@ from .monitor import interfaces, processes, snapshot
 from .tracking import tracks
 from .telemetry import collector_loop, manager, recent_telemetry
 from .log_export import json_line, emit_syslog
+from .config import IS_VERCEL
 
 WEB_DIR = Path(__file__).parent / 'web'
 
@@ -24,6 +25,14 @@ WEB_DIR = Path(__file__).parent / 'web'
 async def lifespan(app: FastAPI):
     init_db()
     init_comms()
+
+    # A Vercel Function is short-lived and must not keep a background task
+    # alive between invocations. Local/Docker deployments keep the realtime
+    # collector enabled as before.
+    if IS_VERCEL:
+        yield
+        return
+
     stop_event = asyncio.Event()
     collector = asyncio.create_task(collector_loop(stop_event))
     app.state.collector_stop = stop_event
