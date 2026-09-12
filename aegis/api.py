@@ -14,7 +14,7 @@ from .decision import assess
 from .integrity import sha256_file
 from .monitor import interfaces, processes, snapshot
 from .tracking import tracks
-from .telemetry import collector_loop, manager
+from .telemetry import collector_loop, manager, recent_telemetry
 from .log_export import json_line, emit_syslog
 
 WEB_DIR = Path(__file__).parent / 'web'
@@ -111,10 +111,17 @@ def create_event(payload: EventPayload):
     return {'id': event_id, 'status': 'recorded'}
 
 
+@app.get('/api/telemetry')
+def telemetry(limit: int = 100):
+    return recent_telemetry(limit)
+
+
 @app.get('/api/logs/json')
 def logs_json(limit: int = 100):
     limit = max(1, min(limit, 1000))
-    return [json_line(x['title'], x['details'], x['severity'], x['source']) for x in events(limit)]
+    telemetry_lines = [json_line(x['event_type'], x['data'], x['severity'], x['source']) for x in recent_telemetry(limit)]
+    event_lines = [json_line(x['title'], x['details'], x['severity'], x['source']) for x in events(limit)]
+    return telemetry_lines + event_lines
 
 
 @app.get('/api/logs/syslog/status')
