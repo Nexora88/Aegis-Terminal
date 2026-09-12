@@ -1,1 +1,52 @@
-<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Aegis Terminal</title><style>body{margin:0;background:#070a09;color:#e9f4ee;font-family:system-ui;padding:28px}main{max-width:1200px;margin:auto}header{display:flex;justify-content:space-between;border-bottom:1px solid #1d2a26;padding-bottom:18px}h1{letter-spacing:.12em}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:25px 0}.card{background:#0c1110;border:1px solid #1d2a26;border-radius:10px;padding:20px}.value{font-size:28px;color:#6cff9b;margin-top:8px}.muted{color:#81958a;font-size:11px;letter-spacing:.12em}.panel{background:#0c1110;border:1px solid #1d2a26;border-radius:10px;padding:20px;margin:14px 0}pre{white-space:pre-wrap;color:#9fb4a7}@media(max-width:700px){.grid{grid-template-columns:1fr 1fr}}</style></head><body><main><header><div><div class='muted'>NEXORA // DEFENSIVE OPERATIONS</div><h1>AEGIS TERMINAL</h1></div><div id='status'>● ONLINE</div></header><div class='grid'><div class='card'><div class='muted'>CPU</div><div id='cpu' class='value'>--</div></div><div class='card'><div class='muted'>MEMORY</div><div id='mem' class='value'>--</div></div><div class='card'><div class='muted'>DISK</div><div id='disk' class='value'>--</div></div><div class='card'><div class='muted'>RISK</div><div id='risk' class='value'>--</div></div></div><section class='panel'><div class='muted'>SYSTEM</div><pre id='system'>Loading...</pre></section><section class='panel'><div class='muted'>TOP PROCESSES</div><pre id='processes'>Loading...</pre></section></main><script>async function j(u){return (await fetch(u)).json()}async function refresh(){let s=await j('/api/system'),r=await j('/api/assessment'),p=await j('/api/processes');cpu.textContent=s.cpu_percent+'%';mem.textContent=s.memory_percent+'%';disk.textContent=s.disk_percent+'%';risk.textContent=r.risk_level+' / '+r.score;system.textContent=JSON.stringify(s,null,2);processes.textContent=JSON.stringify(p,null,2)}refresh();setInterval(refresh,5000)</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aegis Terminal</title>
+<style>
+:root{--bg:#050807;--panel:#0a100e;--line:#17231e;--text:#e8f2ed;--muted:#71847a;--accent:#65f39a;--warn:#f4c76b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#102219 0,#050807 35%);color:var(--text);font:14px Inter,system-ui,sans-serif}main{max-width:1400px;margin:auto;padding:24px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:12px 0 22px}.brand{font-size:20px;font-weight:800;letter-spacing:.18em}.eyebrow,.label{color:var(--muted);font-size:10px;letter-spacing:.16em;text-transform:uppercase}.online{color:var(--accent);font-size:12px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}.card,.panel{background:rgba(10,16,14,.92);border:1px solid var(--line);border-radius:12px}.card{padding:18px}.value{font-size:30px;font-weight:700;margin-top:8px}.sub{color:var(--muted);font-size:11px;margin-top:4px}.layout{display:grid;grid-template-columns:1.5fr 1fr;gap:12px}.panel{padding:18px;margin-bottom:12px}.panel h2{font-size:12px;letter-spacing:.12em;margin:0 0 14px}.metric{height:7px;background:#121b17;border-radius:99px;overflow:hidden;margin:7px 0 14px}.metric i{display:block;height:100%;background:var(--accent);width:0;transition:.4s}.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}.table th{color:var(--muted);font-weight:500}.mono{font-family:ui-monospace,SFMono-Regular,monospace}.event{padding:9px 0;border-bottom:1px solid var(--line)}.sev{font-size:10px;margin-right:8px}.low{color:var(--accent)}.medium{color:var(--warn)}pre{white-space:pre-wrap;color:#9fb1a7;font-size:11px;max-height:260px;overflow:auto}@media(max-width:850px){.grid,.layout{grid-template-columns:1fr 1fr}.layout{display:block}}@media(max-width:520px){main{padding:14px}.grid{grid-template-columns:1fr 1fr}.value{font-size:24px}}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="eyebrow">NEXORA / DEFENSIVE OPERATIONS</div><div class="brand">AEGIS TERMINAL</div></div><div class="online">● SYSTEM ONLINE</div></header>
+<section class="grid">
+<div class="card"><div class="label">CPU LOAD</div><div id="cpu" class="value">--</div><div class="metric"><i id="cpuBar"></i></div></div>
+<div class="card"><div class="label">MEMORY</div><div id="mem" class="value">--</div><div class="metric"><i id="memBar"></i></div></div>
+<div class="card"><div class="label">DISK</div><div id="disk" class="value">--</div><div class="metric"><i id="diskBar"></i></div></div>
+<div class="card"><div class="label">RISK STATE</div><div id="risk" class="value">--</div><div class="sub" id="riskScore">Awaiting assessment</div></div>
+</section>
+<div class="layout">
+<div>
+<section class="panel"><h2>HOST TELEMETRY</h2><pre id="system">Loading...</pre></section>
+<section class="panel"><h2>TOP PROCESSES</h2><table class="table"><thead><tr><th>PID</th><th>PROCESS</th><th>CPU</th><th>MEM</th><th>STATE</th></tr></thead><tbody id="processes"><tr><td colspan="5">Loading...</td></tr></tbody></table></section>
+</div>
+<div>
+<section class="panel"><h2>SECURITY ASSESSMENT</h2><div id="signals" class="sub">Loading...</div></section>
+<section class="panel"><h2>NETWORK INTERFACES</h2><pre id="interfaces">Loading...</pre></section>
+<section class="panel"><h2>EVENT STREAM</h2><div id="events">Loading...</div></section>
+</div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id); const j=async u=>(await fetch(u)).json();
+function pct(v){return Math.round(v)+'%'}
+function bytes(n){if(!n)return'0 B';const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return n.toFixed(i?1:0)+' '+u[i]}
+async function refresh(){
+ try{
+  const [s,r,p,n,e]=await Promise.all([j('/api/system'),j('/api/assessment'),j('/api/processes'),j('/api/interfaces'),j('/api/events')]);
+  $('cpu').textContent=pct(s.cpu_percent);$('mem').textContent=pct(s.memory_percent);$('disk').textContent=pct(s.disk_percent);
+  $('cpuBar').style.width=s.cpu_percent+'%';$('memBar').style.width=s.memory_percent+'%';$('diskBar').style.width=s.disk_percent+'%';
+  $('risk').textContent=r.risk_level;$('riskScore').textContent='Score '+r.score+'/100';
+  $('signals').innerHTML=r.signals.length?r.signals.map(x=>'<div class="event">'+x+'</div>').join(''):'No elevated signals detected.';
+  $('system').textContent='HOST      '+s.hostname+'\nPLATFORM  '+s.platform+'\nPYTHON    '+s.python+'\nCPU CORE  '+s.cpu_count+'\nMEMORY   '+bytes(s.memory_used_bytes)+' / '+bytes(s.memory_total_bytes)+'\nDISK     '+bytes(s.disk_used_bytes)+' / '+bytes(s.disk_total_bytes)+'\nUPTIME   '+Math.floor(s.uptime_seconds/3600)+'h '+Math.floor(s.uptime_seconds/60)%60+'m';
+  $('processes').innerHTML=p.slice(0,12).map(x=>'<tr><td>'+x.pid+'</td><td class="mono">'+(x.name||'unknown')+'</td><td>'+pct(x.cpu_percent||0)+'</td><td>'+Number(x.memory_percent||0).toFixed(1)+'%</td><td>'+String(x.status||'').toUpperCase()+'</td></tr>').join('');
+  $('interfaces').textContent=JSON.stringify(n,null,2);
+  $('events').innerHTML=e.length?e.slice(0,8).map(x=>'<div class="event"><span class="sev '+(String(x.severity).toLowerCase()==='high'?'medium':'low')+'">'+x.severity+'</span>'+x.title+'<div class="sub">'+x.source+' · '+x.created_at+'</div></div>').join(''):'No events recorded.';
+ }catch(err){console.error(err)}
+}
+refresh();setInterval(refresh,5000);
+</script>
+</body></html>
