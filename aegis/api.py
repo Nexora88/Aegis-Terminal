@@ -37,6 +37,10 @@ class MessagePayload(BaseModel):
     message: str
 
 
+class IntegrityPayload(BaseModel):
+    path: str
+
+
 @app.get('/', response_class=HTMLResponse)
 def home():
     return (WEB_DIR / 'index.html').read_text(encoding='utf-8')
@@ -120,7 +124,6 @@ def comms_send(payload: MessagePayload):
         raise HTTPException(400, str(exc)) from exc
 
 
-# Canonical security endpoints.
 @app.get('/api/security/scanner')
 def security_scanner():
     return scanner_overview()
@@ -139,6 +142,7 @@ def security_status():
         'integrity': 'SHA-256 READY',
         'tracking': 'LAWFUL OPEN-DATA ADAPTERS',
         'communications': 'LOCAL ENCRYPTED ROOM',
+        'interfaces': len(interfaces()),
         'unauthorized_actions': False,
     }
 
@@ -158,7 +162,6 @@ def security_scan(payload: ScanPayload):
         raise HTTPException(403, f'Permission denied: {exc}') from exc
 
 
-# Backward-compatible aliases used by older dashboard builds.
 @app.get('/api/malware/status')
 def malware_status_alias():
     return scanner_overview()
@@ -170,8 +173,12 @@ def malware_scan_alias(payload: ScanPayload):
 
 
 @app.post('/api/integrity')
-def integrity(payload: dict):
+def integrity(payload: IntegrityPayload):
     try:
-        return sha256_file(payload.get('path', ''))
+        result = sha256_file(payload.path)
+        add_event('Integrity hash generated', 'INFO', 'integrity-engine', payload.path)
+        return result
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
