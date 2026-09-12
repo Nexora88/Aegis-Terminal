@@ -3,12 +3,12 @@
 import asyncio
 import json
 import logging
-import os
 from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
-from .db import add_event
+from .config import COLLECT_INTERVAL
+from .db import add_event, cleanup_old_events
 from .monitor import processes, snapshot
 from .tracking import tracks
 from .log_export import emit_syslog
@@ -92,17 +92,18 @@ def recent_telemetry(limit: int = 100) -> list[dict]:
 
 
 async def collector_loop(stop_event: asyncio.Event) -> None:
-    try:
-        interval = max(5, int(os.getenv("AEGIS_COLLECT_INTERVAL", "15")))
-    except ValueError:
-        interval = 15
+    cycles = 0
     while not stop_event.is_set():
         try:
             payload = await collect_once()
             await manager.broadcast({"type": "telemetry", "payload": payload})
+            cycles += 1
+            # Retention maintenance is deliberately offloaded so it never blocks telemetry fan-out.
+            if cycles % 100 == 0:
+                await asyncio.to_thread(cleanup_old_events)
         except Exception:
             logger.exception("background telemetry collection failed")
         try:
-            await asyncio.wait_for(stop_event.wait(), timeout=interval)
+            await asyncio.wait_for(stop_event.wait(), timeout=COLLECT_INTERVAL)
         except asyncio.TimeoutError:
             pass
