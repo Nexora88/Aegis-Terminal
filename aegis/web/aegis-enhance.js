@@ -100,13 +100,11 @@ window.showTrackIntel=function(t){aegisBaseShowIntel(t);aegisOpenIntel(t)};
 const aegisBaseDrawAll=window.drawAllMaps;
 window.drawAllMaps=function(){aegisBaseDrawAll();aegisDrawOverlay()};
 
-/* Start over Türkiye / Europe for the first operator view. */
 globe.yaw=35*Math.PI/180;globe.pitch=.08;globe.zoom=1.08;
 aegisEnsureIntel();
 aegisLoadGeo();
 window.addEventListener('resize',aegisDrawOverlay);
 
-/* Operator controls: filter tracks without touching the underlying sensor feed. */
 let aegisFilter='ALL';
 function aegisEnsureControls(){
   const map=document.getElementById('map');if(!map||document.getElementById('aegisFilters'))return;
@@ -117,7 +115,6 @@ function aegisEnsureControls(){
 }
 function aegisApplyFilter(){
   const filtered={...latestTracks,aircraft:aegisFilter==='SEA'?[]:(latestTracks.aircraft||[]),vessels:aegisFilter==='AIR'?[]:(latestTracks.vessels||[])};
-  const base=window.__aegisBaseDraw||drawAllMaps;
   window.__aegisFilteredTracks=filtered;
   drawGlobe($('globeCanvas'),filtered);drawRadar($('radarCanvas'),filtered);aegisDrawOverlay();
 }
@@ -135,3 +132,26 @@ window.renderTracks=function(payload){
 };
 
 aegisEnsureControls();
+
+/* WebSocket realtime telemetry channel. REST polling remains the fallback. */
+(function(){
+  let ws;
+  function connect(){
+    const scheme=location.protocol==='https:'?'wss':'ws';
+    ws=new WebSocket(`${scheme}://${location.host}/ws/telemetry`);
+    ws.onmessage=e=>{
+      try{
+        const m=JSON.parse(e.data),p=m.payload||{};
+        if(m.type!=='telemetry')return;
+        const s=p.system||{};
+        if(s.cpu_percent!=null){metric('cpu',Math.round(s.cpu_percent)+'%');if($('cpuBar'))$('cpuBar').style.width=s.cpu_percent+'%'}
+        if(s.memory_percent!=null){metric('mem',Math.round(s.memory_percent)+'%');if($('memBar'))$('memBar').style.width=s.memory_percent+'%'}
+        if(s.disk_percent!=null){metric('disk',Math.round(s.disk_percent)+'%');if($('diskBar'))$('diskBar').style.width=s.disk_percent+'%'}
+        if(p.tracking)window.renderTracks(p.tracking);
+      }catch(err){console.warn('AEGIS realtime message error',err)}
+    };
+    ws.onclose=()=>setTimeout(connect,3000);
+    ws.onerror=()=>{try{ws.close()}catch(_){}};
+  }
+  connect();
+})();
