@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import sqlite3
 
-from .config import DB_BACKEND, DB_PATH, DATABASE_URL
+from .config import DB_BACKEND, DB_PATH, DATABASE_URL, LOG_RETENTION_DAYS
 
 
 def _pg_connect():
@@ -18,6 +18,7 @@ def init_db():
         return
     with sqlite3.connect(DB_PATH) as c:
         c.execute('CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT,severity TEXT,source TEXT,details TEXT,created_at TEXT)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at)')
 
 
 def add_event(title, severity, source, details):
@@ -46,3 +47,19 @@ def events(limit=50):
     with sqlite3.connect(DB_PATH) as c:
         c.row_factory = sqlite3.Row
         return [dict(x) for x in c.execute('SELECT * FROM events ORDER BY id DESC LIMIT ?', (limit,)).fetchall()]
+
+
+def cleanup_old_events() -> int:
+    """Delete events older than the configured retention window."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=LOG_RETENTION_DAYS)
+    if DB_BACKEND == "postgresql":
+        with _pg_connect() as c:
+            with c.cursor() as cur:
+                cur.execute('DELETE FROM events WHERE created_at < %s', (cutoff,))
+                deleted = cur.rowcount
+            c.commit()
+            return deleted
+    with sqlite3.connect(DB_PATH) as c:
+        cur = c.execute('DELETE FROM events WHERE created_at < ?', (cutoff.isoformat(),))
+        c.commit()
+        return cur.rowcount
