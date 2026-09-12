@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from .antivirus import scan_file, scanner_overview
@@ -13,7 +13,9 @@ from .integrity import sha256_file
 from .monitor import interfaces, processes, snapshot
 from .tracking import tracks
 
-app = FastAPI(title='AEGIS TERMINAL', version='0.4.0')
+WEB_DIR = Path(__file__).parent / 'web'
+
+app = FastAPI(title='AEGIS TERMINAL', version='0.5.0')
 init_db()
 init_comms()
 
@@ -37,7 +39,17 @@ class MessagePayload(BaseModel):
 
 @app.get('/', response_class=HTMLResponse)
 def home():
-    return (Path(__file__).parent / 'web' / 'index.html').read_text(encoding='utf-8')
+    return (WEB_DIR / 'index.html').read_text(encoding='utf-8')
+
+
+@app.get('/aegis.css')
+def css():
+    return FileResponse(WEB_DIR / 'aegis.css', media_type='text/css')
+
+
+@app.get('/aegis.js')
+def js():
+    return FileResponse(WEB_DIR / 'aegis.js', media_type='application/javascript')
 
 
 @app.get('/api/health')
@@ -108,9 +120,27 @@ def comms_send(payload: MessagePayload):
         raise HTTPException(400, str(exc)) from exc
 
 
+# Canonical security endpoints.
 @app.get('/api/security/scanner')
 def security_scanner():
     return scanner_overview()
+
+
+@app.get('/api/security/status')
+def security_status():
+    s = snapshot()
+    assessment = assess(s)
+    scanner = scanner_overview()
+    return {
+        'platform': 'AEGIS TERMINAL',
+        'mode': 'DEFENSIVE',
+        'posture': assessment,
+        'scanner': scanner,
+        'integrity': 'SHA-256 READY',
+        'tracking': 'LAWFUL OPEN-DATA ADAPTERS',
+        'communications': 'LOCAL ENCRYPTED ROOM',
+        'unauthorized_actions': False,
+    }
 
 
 @app.post('/api/security/scan')
@@ -126,6 +156,17 @@ def security_scan(payload: ScanPayload):
         raise HTTPException(404, f'File not found: {exc}') from exc
     except PermissionError as exc:
         raise HTTPException(403, f'Permission denied: {exc}') from exc
+
+
+# Backward-compatible aliases used by older dashboard builds.
+@app.get('/api/malware/status')
+def malware_status_alias():
+    return scanner_overview()
+
+
+@app.post('/api/malware/scan')
+def malware_scan_alias(payload: ScanPayload):
+    return security_scan(payload)
 
 
 @app.post('/api/integrity')
