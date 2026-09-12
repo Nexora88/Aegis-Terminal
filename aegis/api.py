@@ -3,8 +3,8 @@ from pathlib import Path
 import asyncio
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from pydantic import BaseModel, Field
 
 from .antivirus import scan_file, scanner_overview
 from .comms import init_comms, messages, send_message
@@ -34,28 +34,28 @@ async def lifespan(app: FastAPI):
         await collector
 
 
-app = FastAPI(title='AEGIS TERMINAL', version='0.6.0', lifespan=lifespan)
+app = FastAPI(title='AEGIS TERMINAL', version='0.7.0', lifespan=lifespan)
 
 
 class EventPayload(BaseModel):
-    title: str
-    severity: str = 'INFO'
-    source: str = 'dashboard'
-    details: str = ''
+    title: str = Field(min_length=1, max_length=160)
+    severity: str = Field(default='INFO', min_length=1, max_length=32)
+    source: str = Field(default='dashboard', min_length=1, max_length=64)
+    details: str = Field(default='', max_length=8000)
 
 
 class ScanPayload(BaseModel):
-    path: str
+    path: str = Field(min_length=1, max_length=4096)
 
 
 class MessagePayload(BaseModel):
-    sender: str = 'AEGIS-OPERATOR'
-    room: str = 'COMMAND'
-    message: str
+    sender: str = Field(default='AEGIS-OPERATOR', max_length=48)
+    room: str = Field(default='COMMAND', max_length=48)
+    message: str = Field(min_length=1, max_length=4000)
 
 
 class IntegrityPayload(BaseModel):
-    path: str
+    path: str = Field(min_length=1, max_length=4096)
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -116,18 +116,22 @@ def telemetry(limit: int = 100):
     return recent_telemetry(limit)
 
 
-@app.get('/api/logs/json')
+@app.get('/api/logs/json', response_class=PlainTextResponse)
 def logs_json(limit: int = 100):
     limit = max(1, min(limit, 1000))
     telemetry_lines = [json_line(x['event_type'], x['data'], x['severity'], x['source']) for x in recent_telemetry(limit)]
     event_lines = [json_line(x['title'], x['details'], x['severity'], x['source']) for x in events(limit)]
-    return telemetry_lines + event_lines
+    return '\n'.join(telemetry_lines + event_lines) + '\n'
 
 
 @app.get('/api/logs/syslog/status')
 def syslog_status():
     import os
-    return {'configured': bool(os.getenv('AEGIS_SYSLOG_HOST')), 'host': os.getenv('AEGIS_SYSLOG_HOST'), 'port': int(os.getenv('AEGIS_SYSLOG_PORT', '514'))}
+    try:
+        port = int(os.getenv('AEGIS_SYSLOG_PORT', '514'))
+    except ValueError:
+        port = 514
+    return {'configured': bool(os.getenv('AEGIS_SYSLOG_HOST')), 'host': os.getenv('AEGIS_SYSLOG_HOST'), 'port': port}
 
 
 @app.post('/api/logs/syslog/test')
